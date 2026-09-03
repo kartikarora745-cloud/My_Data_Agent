@@ -35,7 +35,7 @@ retriever = vectorstore.as_retriever()
 
 llm = ChatGroq(
     groq_api_key=groq_api_key,
-    model_name="qwen-2.5-32b"
+    model_name="llama-3.3-70b-versatile"
 )
 
 template = """You are an assistant for question-answering tasks.
