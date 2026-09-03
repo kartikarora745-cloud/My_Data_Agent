@@ -5,13 +5,13 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_groq import ChatGroq
-from langchain.chains import create_retrieval_chain
-from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.runnables import RunnablePassthrough
 
 st.title("Spare Parts & Product Assistant")
 
-# Streamlit Secrets se API key le raha hai
+# Streamlit Secrets se API Key
 groq_api_key = os.environ.get("GROQ_API_KEY")
 
 if not groq_api_key:
@@ -35,28 +35,34 @@ retriever = vectorstore.as_retriever()
 
 llm = ChatGroq(
     groq_api_key=groq_api_key,
-    model_name="qwen/qwen3.8-27b"
+    model_name="qwen-2.5-32b"
 )
 
-system_prompt = (
-    "You are an assistant for question-answering tasks. "
-    "Use the following pieces of retrieved context to answer "
-    "the question. If you don't know the answer, say that you "
-    "don't know. Use three sentences maximum and keep the "
-    "answer concise.\n\n"
-    "{context}"
+template = """You are an assistant for question-answering tasks.
+Use the following pieces of retrieved context to answer the question.
+If you don't know the answer, say that you don't know.
+Use three sentences maximum and keep the answer concise.
+
+Context: {context}
+
+Question: {question}
+
+Answer:"""
+
+prompt = ChatPromptTemplate.from_template(template)
+
+def format_docs(docs):
+    return "\n\n".join(doc.page_content for doc in docs)
+
+rag_chain = (
+    {"context": retriever | format_docs, "question": RunnablePassthrough()}
+    | prompt
+    | llm
+    | StrOutputParser()
 )
-
-prompt = ChatPromptTemplate.from_messages([
-    ("system", system_prompt),
-    ("human", "{input}"),
-])
-
-question_answer_chain = create_stuff_documents_chain(llm, prompt)
-rag_chain = create_retrieval_chain(retriever, question_answer_chain)
 
 user_input = st.text_input("Apna sawal poocho:")
 
 if user_input:
-    response = rag_chain.invoke({"input": user_input})
-    st.write(response["answer"])
+    response = rag_chain.invoke(user_input)
+    st.write(response)
